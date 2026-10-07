@@ -5,8 +5,7 @@ import './styles.css';
 
 const api = async (path, options = {}) => {
   const token = localStorage.getItem('notely_token');
-
-  const response = await fetch(`${import.meta.env.VITE_API_URL || ''}${path}`, { ...options, headers: { ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }), ...(token ? { Authorization: `Bearer ${token}` } : {}), ...options.headers } });
+  const response = await fetch(path, { ...options, headers: { ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }), ...(token ? { Authorization: `Bearer ${token}` } : {}), ...options.headers } });
   const data = response.status === 204 ? null : await response.json();
   if (response.status === 401 && token) { localStorage.removeItem('notely_token'); localStorage.removeItem('notely_user'); window.dispatchEvent(new Event('auth-expired')); }
   if (!response.ok) throw new Error(data.message || 'Request failed');
@@ -94,161 +93,11 @@ function App() {
   const grouped = useMemo(() => ['Study', 'Personal', 'Work', 'Fun'].map(f => [f, filtered.filter(n => (n.folder || 'Study') === f)]).filter(([, l]) => l.length), [filtered]);
   const auth = ({ token, user }) => { localStorage.setItem('notely_token', token); localStorage.setItem('notely_user', JSON.stringify(user)); setSession(user); setExpired(false); };
   const logout = () => { localStorage.removeItem('notely_token'); localStorage.removeItem('notely_user'); setSession(null); setNotes([]); setActive(null); };
-  const save = async (next = active) => {
-  if (!next) return;
-
-  setBusy('save');
-
-  try {
-    const updated = await api(`/api/notes/${next._id}`, {
-      method: 'PATCH',
-      body: JSON.stringify(next)
-    });
-
-    setActive(updated);
-
-    setNotes(ns =>
-      ns.map(n =>
-        n._id === updated._id ? updated : n
-      )
-    );
-
-    setNotice('Saved');
-  } catch (e) {
-    setNotice(e.message);
-  } finally {
-    setBusy('');
-  }
-};
-
-const newNote = async () => {
-  try {
-    const n = await api('/api/notes', {
-      method: 'POST',
-      body: JSON.stringify(emptyNote)
-    });
-
-    setNotes(ns => [n, ...ns]);
-    setActive(n);
-    setTab('note');
-
-    return n;
-  } catch (e) {
-    setNotice(e.message);
-  }
-};
-
-const deleteNote = async () => {
-  if (
-    !active ||
-    !window.confirm(`Delete "${active.title}"? This cannot be undone.`)
-  ) {
-    return;
-  }
-
-  try {
-    await api(`/api/notes/${active._id}`, {
-      method: 'DELETE'
-    });
-
-    const remaining = notes.filter(
-      n => n._id !== active._id
-    );
-
-    setNotes(remaining);
-
-    setActive(
-      window.innerWidth > 820
-        ? remaining[0] || null
-        : null
-    );
-
-    setTab('note');
-    setNotice('Note deleted.');
-  } catch (e) {
-    setNotice(e.message);
-  }
-};
-
-const doAi = async () => {
-  if (!active) return;
-
-  setBusy('analyze');
-
-  try {
-    const out = await api(
-      `/api/notes/${active._id}/analyze`,
-      {
-        method: 'POST'
-      }
-    );
-
-    const updated = {
-      ...active,
-      ...out
-    };
-
-    setActive(updated);
-
-    setNotes(ns =>
-      ns.map(n =>
-        n._id === updated._id ? updated : n
-      )
-    );
-
-    setTab('summary');
-  } catch (e) {
-    setNotice(e.message);
-  } finally {
-    setBusy('');
-  }
-};
-
-const importFile = async (e) => {
-  const file = e.target.files?.[0];
-
-  if (!file) return;
-
-  setBusy('pdf');
-
-  try {
-    let n;
-
-    if (
-      /\.pdf$/i.test(file.name) ||
-      file.type === 'application/pdf'
-    ) {
-      const body = new FormData();
-      body.append('file', file);
-
-      n = await api('/api/notes/import-pdf', {
-        method: 'POST',
-        body
-      });
-    } else {
-      const text = await file.text();
-
-      n = await api('/api/notes', {
-        method: 'POST',
-        body: JSON.stringify({
-          title: file.name,
-          content: text.slice(0, 300000),
-          tags: []
-        })
-      });
-    }
-
-    setNotes(ns => [n, ...ns]);
-    setActive(n);
-    setTab('note');
-    setNotice('File imported — ready for AI.');
-  } catch (e) {
-    setNotice(e.message);
-  } finally {
-    setBusy('');
-    e.target.value = '';
-  }
-};
+  const save = async (next = active) => { if (!next) return; setBusy('save'); try { const updated = await api(`/api/notes/${next._id}`, { method: 'PATCH', body: JSON.stringify(next) }); setActive(updated); setNotes(ns => ns.map(n => n._id === updated._id ? updated : n)); setNotice('Saved'); } catch (e) { setNotice(e.message); } finally { setBusy(''); } };
+  const newNote = async () => { try { const n = await api('/api/notes', { method: 'POST', body: JSON.stringify(emptyNote) }); haltDictation(); setNotes(ns => [n, ...ns]); setActive(n); setTab('note'); return n; } catch (e) { setNotice(e.message); } };
+  const deleteNote = async () => { if (!active || !window.confirm(`Delete “${active.title}”? This cannot be undone.`)) return; try { await api(`/api/notes/${active._id}`, { method: 'DELETE' }); const remaining = notes.filter(n => n._id !== active._id); setNotes(remaining); setActive(window.innerWidth > 820 ? remaining[0] || null : null); setTab('note'); setNotice('Note deleted.'); } catch (e) { setNotice(e.message); } };
+  const doAi = async () => { if (!active) return; setBusy('analyze'); try { const out = await api(`/api/notes/${active._id}/analyze`, { method: 'POST' }); const updated = { ...active, ...out }; setActive(updated); setNotes(ns => ns.map(n => n._id === updated._id ? updated : n)); setTab('summary'); } catch (e) { setNotice(e.message); } finally { setBusy(''); } };
+  const importFile = async (e) => { const file = e.target.files?.[0]; if (!file) return; setBusy('pdf'); try { let n; if (/\.pdf$/i.test(file.name) || file.type === 'application/pdf') { const body = new FormData(); body.append('file', file); n = await api('/api/notes/import-pdf', { method: 'POST', body }); } else { const text = await file.text(); n = await api('/api/notes', { method: 'POST', body: JSON.stringify({ title: (file.name.replace(/\.[^.]+$/, '') || 'Imported note').slice(0, 150), content: text.slice(0, 300000), tags: [] }) }); } setNotes(ns => [n, ...ns]); setActive(n); setTab('note'); setNotice('File imported — ready for AI.'); } catch (e) { setNotice(e.message); } finally { setBusy(''); e.target.value = ''; } };
   const haltDictation = () => { const r = recRef.current; if (!r) return; r.onend = null; r.stop(); recRef.current = null; setListening(false); setInterim(''); save(); };
   const startDictation = () => {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
