@@ -23,6 +23,7 @@ if (missing.length) {
   process.exit(1);
 }
 
+const port = process.env.PORT || 5000;
 mongoose.connect(process.env.MONGODB_URI)
-  .then(() => app.listen(process.env.PORT || 5000, '127.0.0.1', () => console.log(`API running at http://127.0.0.1:${process.env.PORT || 5000}`)))
+  .then(() => app.listen(port, '0.0.0.0', () => console.log(`API running on port ${port}`)))
   .catch((err) => { console.error(`MongoDB connection failed: ${err.message}`); process.exit(1); });
