@@ -6,9 +6,17 @@ import './styles.css';
 const api = async (path, options = {}) => {
   const token = localStorage.getItem('notely_token');
   const response = await fetch(path, { ...options, headers: { ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }), ...(token ? { Authorization: `Bearer ${token}` } : {}), ...options.headers } });
-  const data = response.status === 204 ? null : await response.json();
+  if (response.status === 204) return null;
+  const contentType = response.headers.get('content-type') || '';
+  let data = null;
+  if (contentType.includes('application/json')) {
+    data = await response.json();
+  } else {
+    const text = await response.text();
+    throw new Error(text || `Server error (${response.status})`);
+  }
   if (response.status === 401 && token) { localStorage.removeItem('notely_token'); localStorage.removeItem('notely_user'); window.dispatchEvent(new Event('auth-expired')); }
-  if (!response.ok) throw new Error(data.message || 'Request failed');
+  if (!response.ok) throw new Error(data?.message || 'Request failed');
   return data;
 };
 const emptyNote = { title: 'Untitled note', content: '', tags: [] };
